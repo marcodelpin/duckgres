@@ -574,19 +574,39 @@ func openBaseDB(cfg Config, username string) (*sql.DB, error) {
 		}
 	}
 	slog.Info("Opening DuckDB", "dsn", dsn, "user", username)
-	db, err := sql.Open("duckdb", dsn)
+
+	// When opening a database file, another process may briefly hold the write lock
+	// (e.g., an ETL writer). Retry with backoff to handle transient lock conflicts.
+	var db *sql.DB
+	var err error
+	maxRetries := 1
+	if cfg.DatabaseFile != "" {
+		maxRetries = 5
+	}
+	for attempt := range maxRetries {
+		db, err = sql.Open("duckdb", dsn)
+		if err == nil {
+			// Single connection per client session
+			db.SetMaxOpenConns(1)
+			db.SetMaxIdleConns(1)
+
+			// Verify connection (this is where lock errors surface)
+			if pingErr := db.Ping(); pingErr == nil {
+				break // success
+			} else {
+				_ = db.Close()
+				db = nil
+				err = pingErr
+			}
+		}
+		if attempt < maxRetries-1 {
+			backoff := time.Duration(100*(1<<attempt)) * time.Millisecond // 100ms, 200ms, 400ms, 800ms
+			slog.Warn("DuckDB open failed, retrying", "attempt", attempt+1, "backoff", backoff, "error", err)
+			time.Sleep(backoff)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open duckdb (dsn=%s): %w", dsn, err)
-	}
-
-	// Single connection per client session
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-
-	// Verify connection
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to ping duckdb: %w", err)
 	}
 
 	// Set DuckDB threads
