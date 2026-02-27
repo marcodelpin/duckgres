@@ -583,3 +583,70 @@ func TestResolveEffectiveConfigACMEEnvOnly(t *testing.T) {
 		t.Fatalf("expected ACME email from env, got %q", resolved.Server.ACMEEmail)
 	}
 }
+
+func TestResolveEffectiveConfigDatabaseFileAndAccessMode(t *testing.T) {
+	// YAML only
+	fileCfg := &FileConfig{
+		DatabaseFile: "/data/test.duckdb",
+		AccessMode:   "read_only",
+	}
+	resolved := resolveEffectiveConfig(fileCfg, configCLIInputs{}, envFromMap(nil), nil)
+	if resolved.Server.DatabaseFile != "/data/test.duckdb" {
+		t.Fatalf("expected database_file from file, got %q", resolved.Server.DatabaseFile)
+	}
+	if resolved.Server.AccessMode != "read_only" {
+		t.Fatalf("expected access_mode from file, got %q", resolved.Server.AccessMode)
+	}
+
+	// Env overrides file
+	env := map[string]string{
+		"DUCKGRES_DATABASE_FILE": "/data/env.duckdb",
+		"DUCKGRES_ACCESS_MODE":   "read_write",
+	}
+	resolved = resolveEffectiveConfig(fileCfg, configCLIInputs{}, envFromMap(env), nil)
+	if resolved.Server.DatabaseFile != "/data/env.duckdb" {
+		t.Fatalf("expected database_file from env, got %q", resolved.Server.DatabaseFile)
+	}
+	if resolved.Server.AccessMode != "read_write" {
+		t.Fatalf("expected access_mode from env, got %q", resolved.Server.AccessMode)
+	}
+
+	// CLI overrides env
+	resolved = resolveEffectiveConfig(fileCfg, configCLIInputs{
+		Set:          map[string]bool{"database-file": true, "access-mode": true},
+		DatabaseFile: "/data/cli.duckdb",
+		AccessMode:   "read_only",
+	}, envFromMap(env), nil)
+	if resolved.Server.DatabaseFile != "/data/cli.duckdb" {
+		t.Fatalf("expected database_file from CLI, got %q", resolved.Server.DatabaseFile)
+	}
+	if resolved.Server.AccessMode != "read_only" {
+		t.Fatalf("expected access_mode from CLI, got %q", resolved.Server.AccessMode)
+	}
+}
+
+func TestResolveEffectiveConfigInvalidAccessMode(t *testing.T) {
+	env := map[string]string{
+		"DUCKGRES_ACCESS_MODE": "invalid_mode",
+	}
+
+	var warns []string
+	resolved := resolveEffectiveConfig(nil, configCLIInputs{}, envFromMap(env), func(msg string) {
+		warns = append(warns, msg)
+	})
+
+	if resolved.Server.AccessMode != "" {
+		t.Fatalf("expected empty access_mode after invalid input, got %q", resolved.Server.AccessMode)
+	}
+
+	found := false
+	for _, w := range warns {
+		if strings.Contains(w, "Invalid access_mode") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected warning about invalid access_mode, warnings: %v", warns)
+	}
+}

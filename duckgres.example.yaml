@@ -16,6 +16,16 @@ port: 5432
 # Directory for DuckDB database files (one per user)
 data_dir: "./data"
 
+# Path to a specific DuckDB database file (optional)
+# When set, DuckGres opens this file instead of creating per-user in-memory databases.
+# Useful when serving an existing DuckDB file from an ETL pipeline.
+# database_file: "/path/to/your.duckdb"
+
+# DuckDB access mode (optional): "read_only" or "read_write" (default)
+# Use "read_only" when DuckGres should only serve queries while another process writes.
+# This prevents DuckDB lock conflicts between the writer and DuckGres.
+# access_mode: "read_only"
+
 # TLS configuration (required)
 tls:
   cert: "./certs/server.crt"

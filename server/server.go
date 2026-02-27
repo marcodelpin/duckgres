@@ -173,6 +173,16 @@ type Config struct {
 	// PassthroughUsers are users that bypass the SQL transpiler and pg_catalog initialization.
 	// Queries from these users go directly to DuckDB without any PostgreSQL compatibility layer.
 	PassthroughUsers map[string]bool
+
+	// DatabaseFile is the path to a specific DuckDB database file.
+	// When set, DuckGres opens this file instead of an in-memory database.
+	// This is useful when DuckGres serves an existing DuckDB file (e.g., from an ETL pipeline).
+	DatabaseFile string
+
+	// AccessMode controls how DuckDB opens the database file.
+	// Valid values: "read_only", "read_write" (default: "" which means read_write).
+	// Only meaningful when DatabaseFile is set.
+	AccessMode string
 }
 
 // DuckLakeConfig configures DuckLake catalog attachment
@@ -556,9 +566,17 @@ func (s *Server) createDBConnection(username string) (*sql.DB, error) {
 // threads, memory limit, temp directory, extensions, and cache_httpfs settings.
 // This shared setup is used by both regular and passthrough connections.
 func openBaseDB(cfg Config, username string) (*sql.DB, error) {
-	db, err := sql.Open("duckdb", ":memory:")
+	dsn := ":memory:"
+	if cfg.DatabaseFile != "" {
+		dsn = cfg.DatabaseFile
+		if cfg.AccessMode != "" {
+			dsn += "?access_mode=" + cfg.AccessMode
+		}
+	}
+	slog.Info("Opening DuckDB", "dsn", dsn, "user", username)
+	db, err := sql.Open("duckdb", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open duckdb: %w", err)
+		return nil, fmt.Errorf("failed to open duckdb (dsn=%s): %w", dsn, err)
 	}
 
 	// Single connection per client session

@@ -18,6 +18,8 @@ type configCLIInputs struct {
 	FlightHandleIdleTTL       string
 	FlightSessionTokenTTL     string
 	DataDir                   string
+	DatabaseFile              string
+	AccessMode                string
 	CertFile                  string
 	KeyFile                   string
 	ProcessIsolation          bool
@@ -119,6 +121,12 @@ func resolveEffectiveConfig(fileCfg *FileConfig, cli configCLIInputs, getenv fun
 		}
 		if fileCfg.DataDir != "" {
 			cfg.DataDir = fileCfg.DataDir
+		}
+		if fileCfg.DatabaseFile != "" {
+			cfg.DatabaseFile = fileCfg.DatabaseFile
+		}
+		if fileCfg.AccessMode != "" {
+			cfg.AccessMode = fileCfg.AccessMode
 		}
 		if fileCfg.TLS.Cert != "" {
 			cfg.TLSCertFile = fileCfg.TLS.Cert
@@ -304,6 +312,12 @@ func resolveEffectiveConfig(fileCfg *FileConfig, cli configCLIInputs, getenv fun
 	if v := getenv("DUCKGRES_DATA_DIR"); v != "" {
 		cfg.DataDir = v
 	}
+	if v := getenv("DUCKGRES_DATABASE_FILE"); v != "" {
+		cfg.DatabaseFile = v
+	}
+	if v := getenv("DUCKGRES_ACCESS_MODE"); v != "" {
+		cfg.AccessMode = v
+	}
 	if v := getenv("DUCKGRES_CERT"); v != "" {
 		cfg.TLSCertFile = v
 	}
@@ -473,6 +487,12 @@ func resolveEffectiveConfig(fileCfg *FileConfig, cli configCLIInputs, getenv fun
 	if cli.Set["data-dir"] {
 		cfg.DataDir = cli.DataDir
 	}
+	if cli.Set["database-file"] {
+		cfg.DatabaseFile = cli.DatabaseFile
+	}
+	if cli.Set["access-mode"] {
+		cfg.AccessMode = cli.AccessMode
+	}
 	if cli.Set["cert"] {
 		cfg.TLSCertFile = cli.CertFile
 	}
@@ -551,6 +571,12 @@ func resolveEffectiveConfig(fileCfg *FileConfig, cli configCLIInputs, getenv fun
 	if cfg.MemoryBudget != "" && !server.ValidateMemoryLimit(cfg.MemoryBudget) {
 		warn("Invalid memory_budget format: " + cfg.MemoryBudget + " (expected e.g. '24GB', '512MB')")
 		cfg.MemoryBudget = "" // fall back to auto-detection
+	}
+
+	// Validate access_mode if explicitly set
+	if cfg.AccessMode != "" && cfg.AccessMode != "read_only" && cfg.AccessMode != "read_write" {
+		warn("Invalid access_mode: " + cfg.AccessMode + " (expected 'read_only' or 'read_write')")
+		cfg.AccessMode = "" // fall back to default (read_write)
 	}
 
 	return resolvedConfig{

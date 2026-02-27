@@ -30,6 +30,8 @@ type FileConfig struct {
 	FlightHandleIdleTTL       string              `yaml:"flight_handle_idle_ttl"`       // e.g., "15m"
 	FlightSessionTokenTTL     string              `yaml:"flight_session_token_ttl"`     // e.g., "1h"
 	DataDir                   string              `yaml:"data_dir"`
+	DatabaseFile              string              `yaml:"database_file"`  // Path to a specific DuckDB file (overrides :memory:)
+	AccessMode                string              `yaml:"access_mode"`    // "read_only" or "read_write" (default)
 	TLS                       TLSConfig           `yaml:"tls"`
 	Users                     map[string]string   `yaml:"users"`
 	RateLimit                 RateLimitFileConfig `yaml:"rate_limit"`
@@ -163,6 +165,8 @@ func main() {
 	flightHandleIdleTTL := flag.String("flight-handle-idle-ttl", "", "Flight prepared/query handle idle TTL (e.g., '15m') (env: DUCKGRES_FLIGHT_HANDLE_IDLE_TTL)")
 	flightSessionTokenTTL := flag.String("flight-session-token-ttl", "", "Flight issued session token absolute TTL (e.g., '1h') (env: DUCKGRES_FLIGHT_SESSION_TOKEN_TTL)")
 	dataDir := flag.String("data-dir", "", "Directory for DuckDB files (env: DUCKGRES_DATA_DIR)")
+	databaseFile := flag.String("database-file", "", "Path to a specific DuckDB file, overrides :memory: (env: DUCKGRES_DATABASE_FILE)")
+	accessMode := flag.String("access-mode", "", "DuckDB access mode: read_only or read_write (env: DUCKGRES_ACCESS_MODE)")
 	certFile := flag.String("cert", "", "TLS certificate file (env: DUCKGRES_CERT)")
 	keyFile := flag.String("key", "", "TLS private key file (env: DUCKGRES_KEY)")
 	processIsolation := flag.Bool("process-isolation", false, "Enable process isolation (spawn child process per connection)")
@@ -215,6 +219,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_FLIGHT_HANDLE_IDLE_TTL       Flight prepared/query handle idle TTL (default: 15m)\n")
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_FLIGHT_SESSION_TOKEN_TTL     Flight issued session token absolute TTL (default: 1h)\n")
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_DATA_DIR           Directory for DuckDB files (default: ./data)\n")
+		fmt.Fprintf(os.Stderr, "  DUCKGRES_DATABASE_FILE      Path to a specific DuckDB file (overrides :memory:)\n")
+		fmt.Fprintf(os.Stderr, "  DUCKGRES_ACCESS_MODE        DuckDB access mode: read_only or read_write\n")
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_CERT               TLS certificate file (default: ./certs/server.crt)\n")
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_KEY                TLS private key file (default: ./certs/server.key)\n")
 		fmt.Fprintf(os.Stderr, "  DUCKGRES_PROCESS_ISOLATION  Enable process isolation (1 or true)\n")
@@ -301,6 +307,8 @@ func main() {
 		FlightHandleIdleTTL:       *flightHandleIdleTTL,
 		FlightSessionTokenTTL:     *flightSessionTokenTTL,
 		DataDir:                   *dataDir,
+		DatabaseFile:              *databaseFile,
+		AccessMode:                *accessMode,
 		CertFile:                  *certFile,
 		KeyFile:                   *keyFile,
 		ProcessIsolation:          *processIsolation,
